@@ -101,7 +101,6 @@ const FlowchartBuilder = () => {
     };
 
     Object.entries(nodes).forEach(([id, node]) => {
-      // Convert camelCase to snake_case for the condition
       const snakeCaseId = id.replace(/[A-Z]/g, letter => `_${letter.toLowerCase()}`);
       
       exportData.nodes[id] = {
@@ -117,7 +116,6 @@ const FlowchartBuilder = () => {
       };
     });
 
-    // Create and trigger download
     const blob = new Blob([JSON.stringify(exportData, null, 2)], { type: 'application/json' });
     const url = URL.createObjectURL(blob);
     const a = document.createElement('a');
@@ -165,26 +163,16 @@ const FlowchartBuilder = () => {
     const ctx = canvas.getContext('2d');
     const rect = canvas.getBoundingClientRect();
     
-    // Set canvas size to match display size
     canvas.width = rect.width;
     canvas.height = rect.height;
     
-    ctx.clearRect(0, 0, canvas.width, canvas.height);
-    
-    console.log('Current nodes:', nodes);
-    
-    // Draw all connections
     Object.entries(nodes).forEach(([nodeId, node]) => {
       console.log(`Checking connections for node "${nodeId}":`, node.connections);
       
-      // Draw 'yes' connections
       const yesTargetId = node.connections.yes;
       if (yesTargetId && yesTargetId.trim() !== '') {
         const targetNode = nodes[yesTargetId];
-        console.log(`Looking for yes connection "${yesTargetId}" in nodes:`, Object.keys(nodes));
-        
         if (targetNode) {
-          console.log('Drawing yes connection from', nodeId, 'to', yesTargetId);
           ctx.beginPath();
           ctx.strokeStyle = '#22c55e';
           ctx.lineWidth = 2;
@@ -198,7 +186,6 @@ const FlowchartBuilder = () => {
           ctx.lineTo(endX, endY);
           ctx.stroke();
           
-          // Draw arrowhead
           const angle = Math.atan2(endY - startY, endX - startX);
           const arrowLength = 10;
           
@@ -214,19 +201,13 @@ const FlowchartBuilder = () => {
             endY - arrowLength * Math.sin(angle + Math.PI / 6)
           );
           ctx.stroke();
-        } else {
-          console.log(`Target node "${yesTargetId}" not found in`, nodes);
         }
       }
       
-      // Draw 'no' connections
       const noTargetId = node.connections.no;
       if (noTargetId && noTargetId.trim() !== '') {
         const targetNode = nodes[noTargetId];
-        console.log(`Looking for no connection "${noTargetId}" in nodes:`, Object.keys(nodes));
-        
         if (targetNode) {
-          console.log('Drawing no connection from', nodeId, 'to', noTargetId);
           ctx.beginPath();
           ctx.strokeStyle = '#ef4444';
           ctx.lineWidth = 2;
@@ -240,7 +221,6 @@ const FlowchartBuilder = () => {
           ctx.lineTo(endX, endY);
           ctx.stroke();
           
-          // Draw arrowhead
           const angle = Math.atan2(endY - startY, endX - startX);
           const arrowLength = 10;
           
@@ -256,8 +236,6 @@ const FlowchartBuilder = () => {
             endY - arrowLength * Math.sin(angle + Math.PI / 6)
           );
           ctx.stroke();
-        } else {
-          console.log(`Target node "${noTargetId}" not found in`, nodes);
         }
       }
     });
@@ -356,76 +334,88 @@ const FlowchartBuilder = () => {
               handleNodeSelect(id);
             }}
           >
-            <div className="text-sm font-medium mb-2">{node.name}</div
-          >
+            <div className="text-sm font-medium mb-2">{node.name}</div>
             <div className="text-sm font-medium mb-2 break-words">
               {id}
             </div>
-            {selectedNode === id && (
-              <div className="absolute top-0 left-full ml-2 bg-white border border-gray-200 p-4 rounded shadow-lg w-64 z-30">
-                <button
-                  className="absolute top-2 right-2 text-gray-500 hover:text-gray-700"
-                  onClick={(e) => {
-                    e.stopPropagation();
-                    setSelectedNode(null);
-                  }}
-                >
-                  <X size={16} />
-                </button>
-                <div className="space-y-4">
-                  <div>
-                    <label className="block text-sm font-medium text-gray-700">Name</label>
-                    <input
-                      type="text"
-                      value={node.name}
-                      onChange={(e) => updateNodeMetadata(id, 'name', e.target.value)}
-                      className="mt-1 w-full rounded border border-gray-300 px-2 py-1 bg-white text-gray-900"
-                    />
-                  </div>
-                  <div>
-                    <label className="block text-sm font-medium text-gray-700">Type</label>
-                    <select
-                      value={node.type}
-                      onChange={(e) => updateNodeMetadata(id, 'type', e.target.value)}
-                      className="mt-1 w-full rounded border border-gray-300 px-2 py-1"
-                    >
-                      <option value="conditional_boolean">Conditional Boolean</option>
-                      <option value="terminal">Terminal</option>
-                    </select>
-                  </div>
-                  <div>
-                    <label className="block text-sm font-medium text-gray-700">Yes Connection</label>
-                    <input
-                      type="text"
-                      value={node.connections.yes}
-                      onChange={(e) => updateNodeMetadata(id, 'connections', { ...node.connections, yes: e.target.value })}
-                      className="mt-1 w-full rounded border border-gray-300 px-2 py-1"
-                    />
-                  </div>
-                  <div>
-                    <label className="block text-sm font-medium text-gray-700">No Connection</label>
-                    <input
-                      type="text"
-                      value={node.connections.no}
-                      onChange={(e) => updateNodeMetadata(id, 'connections', { ...node.connections, no: e.target.value })}
-                      className="mt-1 w-full rounded border border-gray-300 px-2 py-1"
-                    />
-                  </div>
-                  <div>
-                    <label className="block text-sm font-medium text-gray-700">Prompt</label>
-                    <textarea
-                        value={node.prompt || ''}
-                        onChange={(e) => updateNodeMetadata(id, 'prompt', e.target.value)}
-                        className="mt-1 w-full rounded border border-gray-300 px-2 py-1 min-h-[100px] resize-y"
-                        placeholder="Enter prompt text..."
-                    />
-                    </div>
-                </div>
-              </div>
-            )}
           </div>
         ))}
       </div>
+
+      {selectedNode && (
+        <div
+          className="absolute top-0 left-0 bg-white border border-gray-200 p-4 rounded shadow-lg w-64 z-50"
+          style={{
+            left: nodes[selectedNode].position.x + 150,
+            top: nodes[selectedNode].position.y
+          }}
+        >
+          <button
+            className="absolute top-2 right-2 text-gray-500 hover:text-gray-700"
+            onClick={(e) => {
+              e.stopPropagation();
+              setSelectedNode(null);
+            }}
+          >
+            <X size={16} />
+          </button>
+          <div className="space-y-4">
+            <div>
+              <label className="block text-sm font-medium text-gray-700">Name</label>
+              <input
+                type="text"
+                value={nodes[selectedNode].name}
+                onChange={(e) => updateNodeMetadata(selectedNode, 'name', e.target.value)}
+                className="mt-1 w-full rounded border border-gray-300 px-2 py-1 bg-white text-gray-900"
+              />
+            </div>
+            <div>
+              <label className="block text-sm font-medium text-gray-700">Type</label>
+              <select
+                value={nodes[selectedNode].type}
+                onChange={(e) => updateNodeMetadata(selectedNode, 'type', e.target.value)}
+                className="mt-1 w-full rounded border border-gray-300 px-2 py-1"
+              >
+                <option value="conditional_boolean">Conditional Boolean</option>
+                <option value="terminal">Terminal</option>
+              </select>
+            </div>
+            <div>
+              <label className="block text-sm font-medium text-gray-700">Yes Connection</label>
+              <input
+                type="text"
+                value={nodes[selectedNode].connections.yes}
+                onChange={(e) => updateNodeMetadata(selectedNode, 'connections', { 
+                  ...nodes[selectedNode].connections, 
+                  yes: e.target.value 
+                })}
+                className="mt-1 w-full rounded border border-gray-300 px-2 py-1"
+              />
+            </div>
+            <div>
+              <label className="block text-sm font-medium text-gray-700">No Connection</label>
+              <input
+                type="text"
+                value={nodes[selectedNode].connections.no}
+                onChange={(e) => updateNodeMetadata(selectedNode, 'connections', { 
+                  ...nodes[selectedNode].connections, 
+                  no: e.target.value 
+                })}
+                className="mt-1 w-full rounded border border-gray-300 px-2 py-1"
+              />
+            </div>
+            <div>
+              <label className="block text-sm font-medium text-gray-700">Prompt</label>
+              <textarea
+                value={nodes[selectedNode].prompt || ''}
+                onChange={(e) => updateNodeMetadata(selectedNode, 'prompt', e.target.value)}
+                className="mt-1 w-full rounded border border-gray-300 px-2 py-1 min-h-[100px] resize-y"
+                placeholder="Enter prompt text..."
+              />
+            </div>
+          </div>
+        </div>
+      )}
     </div>
   );
 };
