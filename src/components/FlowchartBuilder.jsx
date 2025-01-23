@@ -106,7 +106,7 @@ const FlowchartBuilder = () => {
     
     const newNode = {
       type: 'conditional_boolean',
-      position: { x: 50, y: 50 },
+      position: { x: 200, y: 150 },
       connections: {
         yes: '',
         no: ''
@@ -369,12 +369,12 @@ const FlowchartBuilder = () => {
         </button>
         <button
           onClick={exportToJson}
-          className="bg-green-500 text-white px-4 py-2 rounded hover:bg-green-600"
+          className="flex items-center gap-2 bg-blue-500 text-white px-4 py-2 rounded hover:bg-green-600"
         >
           Export JSON
         </button>
         <button
-          className="bg-gray-500 text-white px-4 py-2 rounded hover:bg-gray-600"
+          className="flex items-center gap-2 bg-blue-500 text-white px-4 py-2 rounded hover:bg-gray-600"
           onClick={() => fileInput?.click()}
         >
           Import JSON
