@@ -1,5 +1,6 @@
 import React, { useState, useRef, useEffect } from 'react';
 import { X, Plus } from 'lucide-react';
+import JSZip from 'jszip';
 
 const FlowchartBuilder = () => {
   const [nodes, setNodes] = useState({});
@@ -11,6 +12,80 @@ const FlowchartBuilder = () => {
   const [showNamePrompt, setShowNamePrompt] = useState(false);
   const [newNodeName, setNewNodeName] = useState('');
   const [nameError, setNameError] = useState('');
+  const [fileInput, setFileInput] = useState(null);
+  const [promptFileInput, setPromptFileInput] = useState(null);
+
+  const handleFileImport = async (e, isPromptFile = false) => {
+    const file = e.target.files[0];
+    if (!file) return;
+
+    const reader = new FileReader();
+    reader.onload = (event) => {
+      try {
+        const importedData = JSON.parse(event.target.result);
+        console.log(importedData)
+        // Determine whether to update nodes or prompts
+        if (importedData.nodes) {
+          // Import flowchart structure
+          const importedNodes = {};
+
+          if (importedData.nodes) {
+            Object.entries(importedData.nodes).forEach(([id, nodeData]) => {
+              importedNodes[id] = {
+                name: nodeData.data?.desc || id,
+                type: nodeData.type === 'decision' ? 'conditional_boolean' : nodeData.type || 'conditional_boolean',
+                position: {
+                  x: importedData.displayMetadata?.[id]?.x || 50,
+                  y: importedData.displayMetadata?.[id]?.y || 50
+                },
+                connections: {
+                  yes: nodeData.transitions?.true || '',
+                  no: nodeData.transitions?.false || ''
+                },
+                prompt: '' // Initialize to empty string
+              };
+            });
+          }
+
+          // Display warning if no display metadata
+          if (!importedData.displayMetadata) {
+            console.warn('No display metadata found - using default positions');
+          }
+
+          setNodes(importedNodes);
+
+          // Set selected node to start node if available
+          if (importedData.startNode) {
+            setSelectedNode(importedData.startNode);
+          }
+
+          console.log('Imported flowchart structure:', {
+            nodeCount: Object.keys(importedNodes).length
+          });
+        } else if (importedData.prompts) {
+          // Import prompts only
+          importedData.prompts.forEach(promptObj => {
+            if (nodes[promptObj.name]) {
+              setNodes(prevNodes => ({
+                ...prevNodes,
+                [promptObj.name]: {
+                  ...prevNodes[promptObj.name],
+                  prompt: promptObj.prompt
+                }
+              }));
+            }
+          });
+
+          console.log('Imported prompts:', {
+            promptCount: importedData.prompts?.length || 0
+          });
+        }
+      } catch (error) {
+        console.error('Error parsing JSON:', error);
+      }
+    };
+    reader.readAsText(file);
+  };
 
   const addNode = () => {
     setShowNamePrompt(true);
@@ -94,38 +169,74 @@ const FlowchartBuilder = () => {
     }));
   };
 
-  const exportToJson = () => {
-    const exportData = {
-      nodes: {},
-      startNode: Object.keys(nodes)[0] || null
+  const exportToJson = async () => {
+    // Create the two JSON objects
+    const flowchartData = {
+        nodes: {},
+        displayMetadata: {},
+        startNode: Object.keys(nodes)[0] || null
     };
 
+    const promptsData = {
+        prompts: []
+    };
+
+    // Populate flowchart data
     Object.entries(nodes).forEach(([id, node]) => {
-      const snakeCaseId = id.replace(/[A-Z]/g, letter => `_${letter.toLowerCase()}`);
-      
-      exportData.nodes[id] = {
-        type: node.type === 'conditional_boolean' ? 'decision' : 'terminal',
-        data: {
-          desc: node.name || id,
-          condition: snakeCaseId.charAt(0) === '_' ? snakeCaseId.slice(1) : snakeCaseId
-        },
-        transitions: {
-          true: node.connections.yes || null,
-          false: node.connections.no || null
+        flowchartData.nodes[id] = {
+            type: node.type === 'conditional_boolean' ? 'decision' : 'terminal',
+            data: {
+                desc: node.name || id,
+                condition: id.replace(/[A-Z]/g, letter => `_${letter.toLowerCase()}`)
+            },
+            transitions: {
+                true: node.connections.yes || null,
+                false: node.connections.no || null
+            }
+        };
+        flowchartData.displayMetadata[id] = {
+            x: node.position.x,
+            y: node.position.y
+        };
+
+        // Populate prompts data if prompt exists
+        if (node.prompt && node.prompt.trim() !== '') {
+            promptsData.prompts.push({
+                name: id,
+                type: 'condition_prompt_boolean',
+                prompt: node.prompt,
+                target_section: 'methods'
+            });
         }
-      };
     });
 
-    const blob = new Blob([JSON.stringify(exportData, null, 2)], { type: 'application/json' });
-    const url = URL.createObjectURL(blob);
-    const a = document.createElement('a');
-    a.href = url;
-    a.download = 'flowchart.json';
-    document.body.appendChild(a);
-    a.click();
-    document.body.removeChild(a);
-    URL.revokeObjectURL(url);
-  };
+    // Create a new ZIP archive
+    const zip = new JSZip();
+
+    // Add flowchart JSON to zip
+    zip.file('flowchart.json', JSON.stringify(flowchartData, null, 2));
+
+    // If there are prompts to include
+    if (promptsData.prompts.length > 0) {
+        zip.file('prompts.json', JSON.stringify(promptsData, null, 2));
+    }
+
+    // Generate the ZIP file and trigger download
+    zip.generateAsync({ type: 'blob' })
+        .then(function(content) {
+            const url = URL.createObjectURL(content);
+            const a = document.createElement('a');
+            a.href = url;
+            a.download = `flowchart_export_${new Date().toISOString().slice(0,10)}.zip`;
+            document.body.appendChild(a);
+            a.click();
+            document.body.removeChild(a);
+            URL.revokeObjectURL(url);
+        })
+        .catch(function(err) {
+            console.error('Error creating zip file:', err);
+        });
+};
 
   const drawConnections = () => {
     const canvas = canvasRef.current;
@@ -262,6 +373,32 @@ const FlowchartBuilder = () => {
         >
           Export JSON
         </button>
+        <button
+          className="bg-gray-500 text-white px-4 py-2 rounded hover:bg-gray-600"
+          onClick={() => fileInput?.click()}
+        >
+          Import JSON
+        </button>
+        <input
+          type="file"
+          accept=".json"
+          className="hidden"
+          ref={(ref) => setFileInput(ref)}
+          onChange={handleFileImport}
+        />
+        <button
+            className="bg-gray-500 text-white px-4 py-2 rounded hover:bg-gray-600"
+            onClick={() => promptFileInput?.click()}
+          >
+            Import Prompts
+          </button>
+          <input
+            type="file"
+            accept=".json"
+            className="hidden"
+            ref={(ref) => setPromptFileInput(ref)}
+            onChange={(e) => handleFileImport(e, true)}
+          />
       </div>
       
       {showNamePrompt && (
