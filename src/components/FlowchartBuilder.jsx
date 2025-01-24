@@ -14,6 +14,12 @@ const FlowchartBuilder = () => {
   const [nameError, setNameError] = useState('');
   const [fileInput, setFileInput] = useState(null);
   const [promptFileInput, setPromptFileInput] = useState(null);
+  // New state for detectors
+  const [detectors, setDetectors] = useState([]);
+  const [showDetectorPrompt, setShowDetectorPrompt] = useState(false);
+  const [detectorTypeName, setDetectorTypeName] = useState('');
+  const [detectorTypeType, setDetectorTypeType] = useState('');
+  const [detectorPrompt, setDetectorPrompt] = useState('');
 
   const handleFileImport = async (e, isPromptFile = false) => {
     const file = e.target.files[0];
@@ -90,6 +96,39 @@ const FlowchartBuilder = () => {
   const addNode = () => {
     setShowNamePrompt(true);
     setNewNodeName('');
+    setNameError('');
+  };
+
+  const addDetector = () => {
+    setShowNamePrompt(false);
+    setShowDetectorPrompt(true);
+    setDetectorTypeName('');
+    setDetectorTypeType('');
+    setDetectorPrompt('');
+  };
+
+  const handleCreateDetector = () => {
+    if (!detectorTypeName.trim()) {
+      setNameError('Name cannot be empty');
+      return;
+    }
+    
+    if (detectors.some(d => d.name === detectorTypeName)) {
+      setNameError('A detector with this name already exists');
+      return;
+    }
+  
+    const newDetector = {
+      name: detectorTypeName,
+      type: detectorTypeType,
+      prompt: detectorPrompt
+    };
+  
+    setDetectors(prev => [...prev, newDetector]);
+    setShowDetectorPrompt(false);
+    setDetectorTypeName('');
+    setDetectorTypeType('');
+    setDetectorPrompt('');
     setNameError('');
   };
 
@@ -174,7 +213,8 @@ const FlowchartBuilder = () => {
     const flowchartData = {
         nodes: {},
         displayMetadata: {},
-        startNode: Object.keys(nodes)[0] || null
+        startNode: Object.keys(nodes)[0] || null,
+        detectors: detectors
     };
 
     const promptsData = {
@@ -265,6 +305,156 @@ const FlowchartBuilder = () => {
         }
       }
     });
+  };
+
+  // Modify the node editing interface when type is 'terminal'
+  const renderNodeEditingFields = () => {
+    if (!selectedNode) return null;
+
+    const node = nodes[selectedNode];
+    
+    return (
+      <div className="space-y-4">
+        <div>
+          <label className="block text-sm font-medium text-gray-700">Name</label>
+          <input
+            type="text"
+            value={node.name}
+            onChange={(e) => updateNodeMetadata(selectedNode, 'name', e.target.value)}
+            className="mt-1 w-full rounded border border-gray-300 px-2 py-1 bg-white text-gray-900"
+          />
+        </div>
+        <div>
+          <label className="block text-sm font-medium text-gray-700">Type</label>
+          <select
+            value={node.type}
+            onChange={(e) => updateNodeMetadata(selectedNode, 'type', e.target.value)}
+            className="mt-1 w-full rounded border border-gray-300 px-2 py-1"
+          >
+            <option value="conditional_boolean">Conditional Boolean</option>
+            <option value="terminal">Terminal</option>
+          </select>
+        </div>
+        
+        {node.type === 'conditional_boolean' ? (
+          <>
+            <div>
+              <label className="block text-sm font-medium text-gray-700">Yes Connection</label>
+              <input
+                type="text"
+                value={node.connections.yes}
+                onChange={(e) => updateNodeMetadata(selectedNode, 'connections', { 
+                  ...node.connections, 
+                  yes: e.target.value 
+                })}
+                className="mt-1 w-full rounded border border-gray-300 px-2 py-1"
+              />
+            </div>
+            <div>
+              <label className="block text-sm font-medium text-gray-700">No Connection</label>
+              <input
+                type="text"
+                value={node.connections.no}
+                onChange={(e) => updateNodeMetadata(selectedNode, 'connections', { 
+                  ...node.connections, 
+                  no: e.target.value 
+                })}
+                className="mt-1 w-full rounded border border-gray-300 px-2 py-1"
+              />
+            </div>
+            <div>
+              <label className="block text-sm font-medium text-gray-700">Prompt</label>
+              <textarea
+                value={node.prompt || ''}
+                onChange={(e) => updateNodeMetadata(selectedNode, 'prompt', e.target.value)}
+                className="mt-1 w-full rounded border border-gray-300 px-2 py-1 min-h-[100px] resize-y"
+                placeholder="Enter prompt text..."
+              />
+            </div>
+          </>
+        ) : (
+          <div>
+            <label className="block text-sm font-medium text-gray-700">Detector</label>
+            <select
+              value={node.detectorRef || ''}
+              onChange={(e) => updateNodeMetadata(selectedNode, 'detectorRef', e.target.value)}
+              className="mt-1 w-full rounded border border-gray-300 px-2 py-1"
+            >
+              <option value="">Select a detector</option>
+              {detectors.map(detector => (
+                <option key={detector.name} value={detector.name}>
+                  {detector.name} ({detector.type})
+                </option>
+              ))}
+            </select>
+          </div>
+        )}
+      </div>
+    );
+  };
+
+  // Add the detector creation popup
+  const renderDetectorPrompt = () => {
+    if (!showDetectorPrompt) return null;
+
+    return (
+      <div className="fixed inset-0 bg-black bg-opacity-50 flex items-center justify-center z-20">
+        <div className="bg-white rounded-lg p-6 w-96">
+          <h3 className="text-lg font-medium mb-4">New Detector</h3>
+          <div className="space-y-4">
+            <div>
+              <label className="block text-sm font-medium text-gray-700">Name</label>
+              <input
+                type="text"
+                value={detectorTypeName}
+                onChange={(e) => setDetectorTypeName(e.target.value)}
+                className="mt-1 w-full rounded border border-gray-300 px-2 py-1"
+                placeholder="e.g., target"
+              />
+            </div>
+            <div>
+              <label className="block text-sm font-medium text-gray-700">Type</label>
+              <input
+                type="text"
+                value={detectorTypeType}
+                onChange={(e) => setDetectorTypeType(e.target.value)}
+                className="mt-1 w-full rounded border border-gray-300 px-2 py-1"
+                placeholder="e.g., AE"
+              />
+            </div>
+            <div>
+              <label className="block text-sm font-medium text-gray-700">Prompt</label>
+              <textarea
+                value={detectorPrompt}
+                onChange={(e) => setDetectorPrompt(e.target.value)}
+                className="mt-1 w-full rounded border border-gray-300 px-2 py-1 min-h-[100px] resize-y"
+                placeholder="Enter detector prompt..."
+              />
+            </div>
+          </div>
+          {nameError && (
+            <p className="text-red-500 text-sm mt-2">{nameError}</p>
+          )}
+          <div className="flex justify-end gap-2 mt-4">
+            <button
+              onClick={() => {
+                setShowDetectorPrompt(false);
+                setNameError('');
+              }}
+              className="px-4 py-2 text-gray-600 hover:text-gray-800"
+            >
+              Cancel
+            </button>
+            <button
+              onClick={handleCreateDetector}
+              className="px-4 py-2 bg-blue-500 text-white rounded hover:bg-blue-600"
+            >
+              Create
+            </button>
+          </div>
+        </div>
+      </div>
+    );
   };
 
   useEffect(() => {
@@ -368,6 +558,12 @@ const FlowchartBuilder = () => {
           <Plus size={16} /> Add Node
         </button>
         <button
+          onClick={addDetector}
+          className="flex items-center gap-2 bg-green-500 text-white px-4 py-2 rounded hover:bg-green-600"
+        >
+          <Plus size={16} /> Add Detector
+        </button>
+        <button
           onClick={exportToJson}
           className="flex items-center gap-2 bg-blue-500 text-white px-4 py-2 rounded hover:bg-green-600"
         >
@@ -439,6 +635,8 @@ const FlowchartBuilder = () => {
         </div>
       )}
       
+      {renderDetectorPrompt()}
+
       <canvas
         ref={canvasRef}
         className="absolute top-0 left-0 w-full h-full z-10"
@@ -496,61 +694,7 @@ const FlowchartBuilder = () => {
           >
             <X size={16} />
           </button>
-          <div className="space-y-4">
-            <div>
-              <label className="block text-sm font-medium text-gray-700">Name</label>
-              <input
-                type="text"
-                value={nodes[selectedNode].name}
-                onChange={(e) => updateNodeMetadata(selectedNode, 'name', e.target.value)}
-                className="mt-1 w-full rounded border border-gray-300 px-2 py-1 bg-white text-gray-900"
-              />
-            </div>
-            <div>
-              <label className="block text-sm font-medium text-gray-700">Type</label>
-              <select
-                value={nodes[selectedNode].type}
-                onChange={(e) => updateNodeMetadata(selectedNode, 'type', e.target.value)}
-                className="mt-1 w-full rounded border border-gray-300 px-2 py-1"
-              >
-                <option value="conditional_boolean">Conditional Boolean</option>
-                <option value="terminal">Terminal</option>
-              </select>
-            </div>
-            <div>
-              <label className="block text-sm font-medium text-gray-700">Yes Connection</label>
-              <input
-                type="text"
-                value={nodes[selectedNode].connections.yes}
-                onChange={(e) => updateNodeMetadata(selectedNode, 'connections', { 
-                  ...nodes[selectedNode].connections, 
-                  yes: e.target.value 
-                })}
-                className="mt-1 w-full rounded border border-gray-300 px-2 py-1"
-              />
-            </div>
-            <div>
-              <label className="block text-sm font-medium text-gray-700">No Connection</label>
-              <input
-                type="text"
-                value={nodes[selectedNode].connections.no}
-                onChange={(e) => updateNodeMetadata(selectedNode, 'connections', { 
-                  ...nodes[selectedNode].connections, 
-                  no: e.target.value 
-                })}
-                className="mt-1 w-full rounded border border-gray-300 px-2 py-1"
-              />
-            </div>
-            <div>
-              <label className="block text-sm font-medium text-gray-700">Prompt</label>
-              <textarea
-                value={nodes[selectedNode].prompt || ''}
-                onChange={(e) => updateNodeMetadata(selectedNode, 'prompt', e.target.value)}
-                className="mt-1 w-full rounded border border-gray-300 px-2 py-1 min-h-[100px] resize-y"
-                placeholder="Enter prompt text..."
-              />
-            </div>
-          </div>
+          {renderNodeEditingFields()}
         </div>
       )}
     </div>
