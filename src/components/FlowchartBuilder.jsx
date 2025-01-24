@@ -1,5 +1,5 @@
 import React, { useState, useRef, useEffect } from 'react';
-import { X, Plus } from 'lucide-react';
+import { X, Plus, Terminal } from 'lucide-react';
 import JSZip from 'jszip';
 
 const FlowchartBuilder = () => {
@@ -48,7 +48,8 @@ const FlowchartBuilder = () => {
                   yes: nodeData.transitions?.true || '',
                   no: nodeData.transitions?.false || ''
                 },
-                prompt: '' // Initialize to empty string
+                prompt: '', // Initialize to empty string
+                target_section: ''
               };
             });
           }
@@ -217,28 +218,84 @@ const FlowchartBuilder = () => {
     };
 
     const promptsData = {
-        prompts: [],
-        detectors: detectors
+        prompts: []
     };
 
     // Populate flowchart data
     Object.entries(nodes).forEach(([id, node]) => {
-      if (node.type === 'conditional_boolean' && node.prompt) {
-        promptsData.prompts.push({
-          name: id,
-          type: 'condition_prompt_boolean',
-          prompt: node.prompt,
-          target_section: 'methods'
-        });
-      } else if (node.type === 'terminal' && node.detectorRef) {
-        promptsData.prompts.push({
-          name: id,
-          type: 'terminal_full',
-          annotation: 'GO:0035195',
-          detector: node.detectorRef
-        });
-      }
+      console.log(node)
+        // Base node structure
+        var nodeData = {
+            type: node.type ,
+        };
+        
+        // Add type-specific data
+        if (node.type === 'conditional_boolean') {
+            console.log(nodeData)
+            // Add target section if it exists
+            nodeData.data = {
+              desc: node.name || id,
+              condition: id
+          };
+          nodeData.transitions = {
+            true: node.connections.yes || null,
+            false: node.connections.no || null
+        };
+        } else if (node.type === 'terminal' || node.type === 'terminal_short_circuit' || node.type === 'terminal_conditional') {
+            nodeData.data = {
+              desc: node.name || id,
+              terminal: id
+            }
+        }
+        flowchartData.nodes[id] = nodeData;
+        flowchartData.displayMetadata[id] = {
+            x: node.position.x,
+            y: node.position.y
+        };
+
+        // Populate prompts data if prompt exists
+        
+        if (node.type === 'conditional_boolean') {
+          promptsData.prompts.push({
+              name: id,
+              type: 'condition_prompt_boolean',
+              prompt: node.prompt,
+              target_section: node.targetSection || null
+          });
+        } else if (node.type === 'terminal_short_circuit') {
+          promptsData.prompts.push({
+            name: id,
+            type: node.type,
+            annotation: null,
+            detector: null
+          });
+        } else if (node.type === 'terminal') {
+          promptsData.prompts.push({
+            name: id,
+            type: 'terminal_full', // TODO unify this across the LLM side and here
+            annotation: node.annotation,
+            detector: node.detectorRef
+          });
+        } else if (node.type === 'terminal_conditional')
+        {
+          promptsData.prompts.push({
+            name: id,
+            type: node.type,
+            additionalNodes: node.additionalNodes,
+            annotation_map: node.annotationMap
+          });
+        }
+        
     });
+
+    // Add detectors to promptsData if they exist
+    if (detectors.length > 0) {
+        promptsData.detectors = detectors.map(detector => ({
+            name: detector.name,
+            type: detector.type,
+            prompt: detector.prompt
+        }));
+    }
 
     // Create a new ZIP archive
     const zip = new JSZip();
@@ -246,8 +303,8 @@ const FlowchartBuilder = () => {
     // Add flowchart JSON to zip
     zip.file('flowchart.json', JSON.stringify(flowchartData, null, 2));
 
-    // If there are prompts to include
-    if (promptsData.prompts.length > 0) {
+    // If there are prompts or detectors to include
+    if (promptsData.prompts.length > 0 || promptsData.detectors?.length > 0) {
         zip.file('prompts.json', JSON.stringify(promptsData, null, 2));
     }
 
@@ -266,7 +323,7 @@ const FlowchartBuilder = () => {
         .catch(function(err) {
             console.error('Error creating zip file:', err);
         });
-};
+  };
 
   const drawConnections = () => {
     const canvas = canvasRef.current;
@@ -492,6 +549,16 @@ const FlowchartBuilder = () => {
                 onChange={(e) => updateNodeMetadata(selectedNode, 'prompt', e.target.value)}
                 className="mt-1 w-full rounded border border-gray-300 px-2 py-1 min-h-[100px] resize-y"
                 placeholder="Enter prompt text..."
+              />
+            </div>
+            <div>
+              <label className="block text-sm font-medium text-gray-700">Target Section</label>
+              <input
+                type="text"
+                value={node.targetSection || ''}
+                onChange={(e) => updateNodeMetadata(selectedNode, 'targetSection', e.target.value)}
+                className="mt-1 w-full rounded border border-gray-300 px-2 py-1"
+                placeholder="e.g., abstract, methods, results"
               />
             </div>
           </>
