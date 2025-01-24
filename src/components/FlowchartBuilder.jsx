@@ -213,41 +213,31 @@ const FlowchartBuilder = () => {
     const flowchartData = {
         nodes: {},
         displayMetadata: {},
-        startNode: Object.keys(nodes)[0] || null,
-        detectors: detectors
+        startNode: Object.keys(nodes)[0] || null
     };
 
     const promptsData = {
-        prompts: []
+        prompts: [],
+        detectors: detectors
     };
 
     // Populate flowchart data
     Object.entries(nodes).forEach(([id, node]) => {
-        flowchartData.nodes[id] = {
-            type: node.type === 'conditional_boolean' ? 'decision' : 'terminal',
-            data: {
-                desc: node.name || id,
-                condition: id.replace(/[A-Z]/g, letter => `_${letter.toLowerCase()}`)
-            },
-            transitions: {
-                true: node.connections.yes || null,
-                false: node.connections.no || null
-            }
-        };
-        flowchartData.displayMetadata[id] = {
-            x: node.position.x,
-            y: node.position.y
-        };
-
-        // Populate prompts data if prompt exists
-        if (node.prompt && node.prompt.trim() !== '') {
-            promptsData.prompts.push({
-                name: id,
-                type: 'condition_prompt_boolean',
-                prompt: node.prompt,
-                target_section: 'methods'
-            });
-        }
+      if (node.type === 'conditional_boolean' && node.prompt) {
+        promptsData.prompts.push({
+          name: id,
+          type: 'condition_prompt_boolean',
+          prompt: node.prompt,
+          target_section: 'methods'
+        });
+      } else if (node.type === 'terminal' && node.detectorRef) {
+        promptsData.prompts.push({
+          name: id,
+          type: 'terminal_full',
+          annotation: 'GO:0035195',
+          detector: node.detectorRef
+        });
+      }
     });
 
     // Create a new ZIP archive
@@ -312,10 +302,11 @@ const FlowchartBuilder = () => {
     if (!selectedNode) return null;
 
     const node = nodes[selectedNode];
-    
+    const nodeType = node.type;
+    const popupWidth = nodeType === 'terminal_conditional' ? 'w-96' : '';
     return (
-      <div className="space-y-4">
-        <div>
+      <div className={`space-y-4 ${popupWidth}`}>
+        {/* <div>
           <label className="block text-sm font-medium text-gray-700">Name</label>
           <input
             type="text"
@@ -323,19 +314,151 @@ const FlowchartBuilder = () => {
             onChange={(e) => updateNodeMetadata(selectedNode, 'name', e.target.value)}
             className="mt-1 w-full rounded border border-gray-300 px-2 py-1 bg-white text-gray-900"
           />
-        </div>
-        <div>
+        </div> */}
+        <div className='mt-6'>
           <label className="block text-sm font-medium text-gray-700">Type</label>
           <select
             value={node.type}
-            onChange={(e) => updateNodeMetadata(selectedNode, 'type', e.target.value)}
+            onChange={(e) => {
+              const newType = e.target.value;
+              updateNodeMetadata(selectedNode, 'type', newType);
+              
+              // Clear detector and annotation for terminal_short_circuit
+              if (newType === 'terminal_short_circuit') {
+                updateNodeMetadata(selectedNode, 'detectorRef', '');
+                updateNodeMetadata(selectedNode, 'annotation', '');
+              }
+            }}
             className="mt-1 w-full rounded border border-gray-300 px-2 py-1"
           >
             <option value="conditional_boolean">Conditional Boolean</option>
             <option value="terminal">Terminal</option>
+            <option value="terminal_short_circuit">Terminal Short Circuit</option>
+            <option value="terminal_conditional">Terminal Conditional</option>
           </select>
         </div>
         
+        {node.type === 'terminal_conditional' && (
+          <>
+            <div>
+              <label className="block text-sm font-medium text-gray-700">Additional Nodes</label>
+              <input
+                type="text"
+                defaultValue={node.additionalNodes ? node.additionalNodes.join(', ') : ''}
+                onChange={(e) => {
+                  const inputText = e.target.value;
+                  const nodeList = inputText.split(',').map(n => n.trim()).filter(n => n !== '');
+                  
+                  // Update the additional nodes
+                  updateNodeMetadata(selectedNode, 'additionalNodes', nodeList);
+                  
+                  // Update all annotation map arrays to match the new length
+                  if (node.annotationMap) {
+                    const newMap = Object.fromEntries(
+                      Object.entries(node.annotationMap).map(([key, value]) => [
+                        key,
+                        Array(nodeList.length).fill(false).map((_, i) => value[i] || false)
+                      ])
+                    );
+                    updateNodeMetadata(selectedNode, 'annotationMap', newMap);
+                  }
+                }}
+                className="mt-1 w-full rounded border border-gray-300 px-2 py-1"
+                placeholder="Enter node IDs, comma-separated"
+              />
+              <p className="mt-1 text-sm text-gray-500">Available nodes: {Object.keys(nodes).filter(id => id !== selectedNode).join(', ')}</p>
+            </div>
+            <div>
+              <label className="block text-sm font-medium text-gray-700">Annotation Mappings</label>
+              <div className="space-y-2">
+                {Object.entries(node.annotationMap || {}).map(([key, value], index) => (
+                  <div key={index} className="flex gap-2">
+                    <input
+                      type="text"
+                      value={key}
+                      onChange={(e) => {
+                        const newMap = { ...node.annotationMap };
+                        delete newMap[key];
+                        newMap[e.target.value] = value;
+                        updateNodeMetadata(selectedNode, 'annotationMap', newMap);
+                      }}
+                      className="flex-1 rounded border border-gray-300 px-2 py-1"
+                      placeholder="Key"
+                    />
+                    <div className="flex items-center gap-2">
+                      <div className="flex flex-wrap gap-1">
+                        {Array(node.additionalNodes?.length || 0).fill(false).map((_, boolIndex) => (
+                          <input
+                            key={boolIndex}
+                            type="checkbox"
+                            checked={value[boolIndex] || false}
+                            onChange={(e) => {
+                              const newMap = { ...node.annotationMap };
+                              newMap[key][boolIndex] = e.target.checked;
+                              updateNodeMetadata(selectedNode, 'annotationMap', newMap);
+                            }}
+                            className="rounded border-gray-300"
+                          />
+                        ))}
+                      </div>
+                    </div>
+                    <button
+                      onClick={() => {
+                        const newMap = { ...node.annotationMap };
+                        delete newMap[key];
+                        updateNodeMetadata(selectedNode, 'annotationMap', newMap);
+                      }}
+                      className="text-red-500 hover:text-red-700"
+                    >
+                      <X size={16} />
+                    </button>
+                  </div>
+                ))}
+                <button
+                  onClick={() => {
+                    const newMap = { ...node.annotationMap };
+                    newMap[`key${Object.keys(newMap).length + 1}`] = Array(node.additionalNodes?.length || 0).fill(false);
+                    updateNodeMetadata(selectedNode, 'annotationMap', newMap);
+                  }}
+                  className="text-sm text-blue-500 hover:text-blue-700"
+                >
+                  Add Mapping
+                </button>
+              </div>
+            </div>
+          </>
+        )}
+
+        {(node.type === 'terminal' ) && (
+          <>
+            <div>
+              <label className="block text-sm font-medium text-gray-700">Detector</label>
+              <select
+                value={node.detectorRef || ''}
+                onChange={(e) => updateNodeMetadata(selectedNode, 'detectorRef', e.target.value)}
+                className="mt-1 w-full rounded border border-gray-300 px-2 py-1"
+              >
+                <option value="">Select a detector</option>
+                {detectors.map(detector => (
+                  <option key={detector.name} value={detector.name}>
+                    {detector.name} ({detector.type})
+                  </option>
+                ))}
+              </select>
+            </div>
+            <div>
+              <label className="block text-sm font-medium text-gray-700">Annotation</label>
+              <input
+                type="text"
+                value={node.annotation || ''}
+                onChange={(e) => updateNodeMetadata(selectedNode, 'annotation', e.target.value)}
+                className="mt-1 w-full rounded border border-gray-300 px-2 py-1"
+                placeholder="e.g., GO:0035195"
+              />
+            </div>
+          </>
+        )}
+
         {node.type === 'conditional_boolean' ? (
           <>
             <div>
@@ -372,23 +495,7 @@ const FlowchartBuilder = () => {
               />
             </div>
           </>
-        ) : (
-          <div>
-            <label className="block text-sm font-medium text-gray-700">Detector</label>
-            <select
-              value={node.detectorRef || ''}
-              onChange={(e) => updateNodeMetadata(selectedNode, 'detectorRef', e.target.value)}
-              className="mt-1 w-full rounded border border-gray-300 px-2 py-1"
-            >
-              <option value="">Select a detector</option>
-              {detectors.map(detector => (
-                <option key={detector.name} value={detector.name}>
-                  {detector.name} ({detector.type})
-                </option>
-              ))}
-            </select>
-          </div>
-        )}
+        ) : null}
       </div>
     );
   };
@@ -679,7 +786,7 @@ const FlowchartBuilder = () => {
 
       {selectedNode && (
         <div
-          className="absolute top-0 left-0 bg-white border border-gray-200 p-4 rounded shadow-lg w-64 z-50"
+          className="absolute top-0 left-0 bg-white border border-gray-200 p-4 rounded shadow-lg w-128 z-50"
           style={{
             left: nodes[selectedNode].position.x + 150,
             top: nodes[selectedNode].position.y
