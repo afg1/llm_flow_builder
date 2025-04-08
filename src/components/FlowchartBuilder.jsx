@@ -24,68 +24,159 @@ const FlowchartBuilder = () => {
   const handleFileImport = async (e, isPromptFile = false) => {
     const file = e.target.files[0];
     if (!file) return;
-
+  
     const reader = new FileReader();
     reader.onload = (event) => {
       try {
         const importedData = JSON.parse(event.target.result);
-        console.log(importedData)
+        console.log("Imported data:", importedData);
+        
         // Determine whether to update nodes or prompts
         if (importedData.nodes) {
           // Import flowchart structure
           const importedNodes = {};
-
-          if (importedData.nodes) {
-            Object.entries(importedData.nodes).forEach(([id, nodeData]) => {
-              importedNodes[id] = {
-                name: nodeData.data?.desc || id,
-                type: nodeData.type === 'decision' ? 'conditional_boolean' : nodeData.type || 'conditional_boolean',
-                position: {
-                  x: importedData.displayMetadata?.[id]?.x || 50,
-                  y: importedData.displayMetadata?.[id]?.y || 50
-                },
-                connections: {
-                  yes: nodeData.transitions?.true || '',
-                  no: nodeData.transitions?.false || ''
-                },
-                prompt: '', // Initialize to empty string
-                target_section: ''
-              };
-            });
-          }
-
+  
+          // Process nodes from the flowchart structure
+          Object.entries(importedData.nodes).forEach(([id, nodeData]) => {
+            
+            // Determine node type properly
+            let nodeType;
+            if (nodeData.type === 'decision') {
+              nodeType = 'conditional_prompt_boolean';
+            } else {
+              console.log("loaded node type: ", nodeData.type);
+              nodeType = nodeData.type || 'conditional_prompt_boolean';
+              console.log("determined node type: ", nodeType);
+            }
+            
+            // Create the node with all necessary properties
+            importedNodes[id] = {
+              name: nodeData.data?.desc || id, // Make sure name is set
+              type: nodeType,
+              position: {
+                x: importedData.displayMetadata?.[id]?.x || 50,
+                y: importedData.displayMetadata?.[id]?.y || 50
+              },
+              connections: {
+                yes: nodeData.transitions?.true || '',
+                no: nodeData.transitions?.false || ''
+              },
+              prompt: '', // Initialize to empty string
+              targetSection: '',
+              annotation: nodeData.data?.annotation || '',
+              detectorRef: nodeData.data?.detector || ''
+            };
+  
+            // Add any additional properties based on node type
+            if (nodeType === 'terminal_conditional' && nodeData.data) {
+              importedNodes[id].additionalNodes = nodeData.data.additionalNodes || [];
+              importedNodes[id].annotationMap = nodeData.data.annotation_map || {};
+            }
+          });
+  
           // Display warning if no display metadata
           if (!importedData.displayMetadata) {
             console.warn('No display metadata found - using default positions');
           }
-
+  
+          // Set the nodes state
           setNodes(importedNodes);
-
+  
           // Set selected node to start node if available
           if (importedData.startNode) {
             setSelectedNode(importedData.startNode);
           }
-
+  
           console.log('Imported flowchart structure:', {
             nodeCount: Object.keys(importedNodes).length
           });
-        } else if (importedData.prompts) {
-          // Import prompts only
+          
+          // Force a refresh of the UI by selecting a node and updating its type slightly
+          // This is a workaround to trigger the UI to display all properties
+          setTimeout(() => {
+            const firstNodeId = Object.keys(importedNodes)[0];
+            if (firstNodeId) {
+              // Select the node
+              setSelectedNode(firstNodeId);
+              
+              // Force a re-render with a small delay
+              setTimeout(() => {
+                console.log("Forcing UI refresh for node:", firstNodeId);
+                // This is a trick to force the component to refresh without changing actual data
+                // We'll set the same type to itself, which should trigger the UI update
+                const currentNode = importedNodes[firstNodeId];
+                updateNodeMetadata(firstNodeId, 'type', currentNode.type);
+              }, 100);
+            }
+          }, 100);
+        } 
+        // Handle prompt import
+        else if (importedData.prompts) {
+          console.log('Importing prompts data:', importedData.prompts);
+          
+          // Create a copy of existing nodes to update
+          const updatedNodes = {...nodes};
+          
+          // Track which nodes were updated
+          const updatedNodeIds = [];
+          
           importedData.prompts.forEach(promptObj => {
-            if (nodes[promptObj.name]) {
-              setNodes(prevNodes => ({
-                ...prevNodes,
-                [promptObj.name]: {
-                  ...prevNodes[promptObj.name],
-                  prompt: promptObj.prompt
-                }
-              }));
+            const nodeName = promptObj.name;
+            
+            if (updatedNodes[nodeName]) {
+              // Update the node with prompt data
+              updatedNodes[nodeName] = {
+                ...updatedNodes[nodeName],
+                prompt: promptObj.prompt || '',
+                targetSection: promptObj.target_section || '',
+                annotation: promptObj.annotation || '',
+                detectorRef: promptObj.detector || ''
+              };
+              
+              // Handle terminal_conditional specific properties
+              if (promptObj.type === 'terminal_conditional') {
+                updatedNodes[nodeName].additionalNodes = promptObj.additionalNodes || [];
+                updatedNodes[nodeName].annotationMap = promptObj.annotation_map || {};
+              }
+              
+              updatedNodeIds.push(nodeName);
+            } else {
+              console.warn(`Node "${nodeName}" not found in current flowchart`);
             }
           });
-
+          
+          // Update the nodes state
+          setNodes(updatedNodes);
+          
           console.log('Imported prompts:', {
-            promptCount: importedData.prompts?.length || 0
+            promptCount: importedData.prompts?.length || 0,
+            updatedNodeIds: updatedNodeIds
           });
+          
+          // Force a refresh if we have updated nodes
+          if (updatedNodeIds.length > 0) {
+            setTimeout(() => {
+              const firstNodeId = updatedNodeIds[0];
+              setSelectedNode(firstNodeId);
+              
+              // Force a re-render with a small delay
+              setTimeout(() => {
+                console.log("Forcing UI refresh for node:", firstNodeId);
+                const currentNode = updatedNodes[firstNodeId];
+                updateNodeMetadata(firstNodeId, 'type', currentNode.type);
+              }, 100);
+            }, 100);
+          }
+        }
+        
+        // Import detectors if they exist
+        if (importedData.detectors && importedData.detectors.length > 0) {
+          setDetectors(importedData.detectors.map(detector => ({
+            name: detector.name,
+            type: detector.type,
+            prompt: detector.prompt
+          })));
+          console.log('Imported detectors:', importedData.detectors.length);
         }
       } catch (error) {
         console.error('Error parsing JSON:', error);
@@ -241,7 +332,7 @@ const FlowchartBuilder = () => {
             true: node.connections.yes || null,
             false: node.connections.no || null
         };
-        } else if (node.type === 'terminal' || node.type === 'terminal_short_circuit' || node.type === 'terminal_conditional') {
+        } else if (node.type === 'terminal_full' || node.type === 'terminal_short_circuit' || node.type === 'terminal_conditional') {
             nodeData.data = {
               desc: node.name || id,
               terminal: id
@@ -269,7 +360,7 @@ const FlowchartBuilder = () => {
             annotation: null,
             detector: null
           });
-        } else if (node.type === 'terminal') {
+        } else if (node.type === 'terminal_full') {
           promptsData.prompts.push({
             name: id,
             type: 'terminal_full', // TODO unify this across the LLM side and here
@@ -389,7 +480,7 @@ const FlowchartBuilder = () => {
             className="mt-1 w-full rounded border border-gray-300 px-2 py-1"
           >
             <option value="conditional_boolean">Conditional Boolean</option>
-            <option value="terminal">Terminal</option>
+            <option value="terminal_full">Terminal</option>
             <option value="terminal_short_circuit">Terminal Short Circuit</option>
             <option value="terminal_conditional">Terminal Conditional</option>
           </select>
@@ -486,7 +577,7 @@ const FlowchartBuilder = () => {
           </>
         )}
 
-        {(node.type === 'terminal' ) && (
+        {(node.type === 'terminal_full' ) && (
           <>
             <div>
               <label className="block text-sm font-medium text-gray-700">Detector</label>
@@ -516,7 +607,7 @@ const FlowchartBuilder = () => {
           </>
         )}
 
-        {node.type === 'conditional_boolean' ? (
+        {node.type === 'conditional_prompt_boolean' ? (
           <>
             <div>
               <label className="block text-sm font-medium text-gray-700">Yes Connection</label>
@@ -642,7 +733,7 @@ const FlowchartBuilder = () => {
     canvas.height = rect.height;
     
     Object.entries(nodes).forEach(([nodeId, node]) => {
-      console.log(`Checking connections for node "${nodeId}":`, node.connections);
+      // console.log(`Checking connections for node "${nodeId}":`, node.connections);
       
       const yesTargetId = node.connections.yes;
       if (yesTargetId && yesTargetId.trim() !== '') {
