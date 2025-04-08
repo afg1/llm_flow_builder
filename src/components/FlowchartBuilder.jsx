@@ -477,7 +477,7 @@ const FlowchartBuilder = () => {
                 updateNodeMetadata(selectedNode, 'annotation', '');
               }
             }}
-            className="mt-1 w-full rounded border border-gray-300 px-2 py-1"
+            className="mt-1 w-full rounded border border-gray-300 px-2 py-1 text-gray-900 bg-white"
           >
             <option value="conditional_boolean">Conditional Boolean</option>
             <option value="terminal_full">Terminal</option>
@@ -511,7 +511,7 @@ const FlowchartBuilder = () => {
                     updateNodeMetadata(selectedNode, 'annotationMap', newMap);
                   }
                 }}
-                className="mt-1 w-full rounded border border-gray-300 px-2 py-1"
+                className="mt-1 w-full rounded border border-gray-300 px-2 py-1 text-gray-900 bg-white"
                 placeholder="Enter node IDs, comma-separated"
               />
               <p className="mt-1 text-sm text-gray-500">Available nodes: {Object.keys(nodes).filter(id => id !== selectedNode).join(', ')}</p>
@@ -530,7 +530,7 @@ const FlowchartBuilder = () => {
                         newMap[e.target.value] = value;
                         updateNodeMetadata(selectedNode, 'annotationMap', newMap);
                       }}
-                      className="flex-1 rounded border border-gray-300 px-2 py-1"
+                      className="flex-1 rounded border border-gray-300 px-2 py-1 text-gray-900 bg-white"
                       placeholder="Key"
                     />
                     <div className="flex items-center gap-2">
@@ -618,7 +618,7 @@ const FlowchartBuilder = () => {
                   ...node.connections, 
                   yes: e.target.value 
                 })}
-                className="mt-1 w-full rounded border border-gray-300 px-2 py-1"
+                className="mt-1 w-full rounded border border-gray-300 px-2 py-1 text-gray-900 bg-white"
               />
             </div>
             <div>
@@ -630,7 +630,7 @@ const FlowchartBuilder = () => {
                   ...node.connections, 
                   no: e.target.value 
                 })}
-                className="mt-1 w-full rounded border border-gray-300 px-2 py-1"
+                className="mt-1 w-full rounded border border-gray-300 px-2 py-1 text-gray-900 bg-white"
               />
             </div>
             <div>
@@ -638,7 +638,7 @@ const FlowchartBuilder = () => {
               <textarea
                 value={node.prompt || ''}
                 onChange={(e) => updateNodeMetadata(selectedNode, 'prompt', e.target.value)}
-                className="mt-1 w-full rounded border border-gray-300 px-2 py-1 min-h-[100px] resize-y"
+                className="mt-1 w-full rounded border border-gray-300 px-2 py-1 min-h-[100px] resize-y text-gray-900 bg-white"
                 placeholder="Enter prompt text..."
               />
             </div>
@@ -648,7 +648,7 @@ const FlowchartBuilder = () => {
                 type="text"
                 value={node.targetSection || ''}
                 onChange={(e) => updateNodeMetadata(selectedNode, 'targetSection', e.target.value)}
-                className="mt-1 w-full rounded border border-gray-300 px-2 py-1"
+                className="mt-1 w-full rounded border border-gray-300 px-2 py-1 text-gray-900 bg-white"
                 placeholder="e.g., abstract, methods, results"
               />
             </div>
@@ -663,7 +663,7 @@ const FlowchartBuilder = () => {
     if (!showDetectorPrompt) return null;
 
     return (
-      <div className="fixed inset-0 bg-black bg-opacity-50 flex items-center justify-center z-20">
+      <div className="fixed inset-0 bg-black bg-opacity-50 flex items-center justify-center z-50">
         <div className="bg-white rounded-lg p-6 w-96">
           <h3 className="text-lg font-medium mb-4">New Detector</h3>
           <div className="space-y-4">
@@ -692,7 +692,7 @@ const FlowchartBuilder = () => {
               <textarea
                 value={detectorPrompt}
                 onChange={(e) => setDetectorPrompt(e.target.value)}
-                className="mt-1 w-full rounded border border-gray-300 px-2 py-1 min-h-[100px] resize-y"
+                className="mt-1 w-full rounded border border-gray-300 px-2 py-1 min-h-[100px] resize-y text-gray-900 bg-white"
                 placeholder="Enter detector prompt..."
               />
             </div>
@@ -768,8 +768,7 @@ const FlowchartBuilder = () => {
           );
           ctx.stroke();
         }
-      }
-      
+      };
       const noTargetId = node.connections.no;
       if (noTargetId && noTargetId.trim() !== '') {
         const targetNode = nodes[noTargetId];
@@ -862,15 +861,16 @@ const FlowchartBuilder = () => {
           />
       </div>
       
+      {/* Node creation modal with higher z-index */}
       {showNamePrompt && (
-        <div className="fixed inset-0 bg-black bg-opacity-50 flex items-center justify-center z-20">
-          <div className="bg-white rounded-lg p-6 w-96">
+        <div className="fixed inset-0 bg-black bg-opacity-50 flex items-center justify-center z-50">
+          <div className="bg-white rounded-lg p-6 w-96 text-gray-900">
             <h3 className="text-lg font-medium mb-4">New Node Name</h3>
             <input
               type="text"
               value={newNodeName}
               onChange={(e) => setNewNodeName(e.target.value)}
-              className="w-full border border-gray-300 rounded px-3 py-2 mb-2"
+              className="w-full border border-gray-300 rounded px-3 py-2 mb-2 text-gray-900"
               placeholder="e.g., hasExperimentalEvidence"
               onKeyDown={(e) => {
                 if (e.key === 'Enter') {
@@ -884,7 +884,10 @@ const FlowchartBuilder = () => {
             )}
             <div className="flex justify-end gap-2 mt-4">
               <button
-                onClick={() => setShowNamePrompt(false)}
+                onClick={() => {
+                  setShowNamePrompt(false);
+                  setNameError('');
+                }}
                 className="px-4 py-2 text-gray-600 hover:text-gray-800"
               >
                 Cancel
@@ -944,7 +947,7 @@ const FlowchartBuilder = () => {
 
       {selectedNode && (
         <div
-          className="absolute top-0 left-0 bg-white border border-gray-200 p-4 rounded shadow-lg w-128 z-50"
+          className="absolute top-0 left-0 bg-white border border-gray-200 p-4 rounded shadow-lg w-128 z-40 text-gray-900"
           style={{
             left: nodes[selectedNode].position.x + 150,
             top: nodes[selectedNode].position.y
