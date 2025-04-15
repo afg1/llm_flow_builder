@@ -377,7 +377,7 @@ const FlowchartBuilder = () => {
         };
         
         // Add type-specific data
-        if (node.type === 'conditional_boolean') {
+        if (node.type === 'conditional_prompt_boolean') {
             console.log(nodeData)
             // Add target section if it exists
             nodeData.data = {
@@ -403,7 +403,7 @@ const FlowchartBuilder = () => {
 
         // Populate prompts data if prompt exists
         
-        if (node.type === 'conditional_boolean') {
+        if (node.type === 'conditional_prompt_boolean') {
           promptsData.prompts.push({
               name: id,
               type: 'condition_prompt_boolean',
@@ -529,7 +529,7 @@ const FlowchartBuilder = () => {
             }}
             className="mt-1 w-full rounded border border-gray-300 px-2 py-1 text-gray-900 bg-white"
           >
-            <option value="conditional_boolean">Conditional Boolean</option>
+            <option value="conditional_prompt_boolean">Conditional Boolean</option>
             <option value="terminal_full">Terminal</option>
             <option value="terminal_short_circuit">Terminal Short Circuit</option>
             <option value="terminal_conditional">Terminal Conditional</option>
