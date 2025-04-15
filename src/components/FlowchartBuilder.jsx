@@ -241,7 +241,7 @@ const FlowchartBuilder = () => {
     }
     
     const newNode = {
-      type: 'conditional_prompt_boolean',
+      type: 'conditional_boolean',
       position: { x: 200, y: 150 },
       connections: {
         yes: '',
@@ -634,7 +634,7 @@ const FlowchartBuilder = () => {
               <select
                 value={node.detectorRef || ''}
                 onChange={(e) => updateNodeMetadata(selectedNode, 'detectorRef', e.target.value)}
-                className="mt-1 w-full rounded border border-gray-300 px-2 py-1"
+                className="mt-1 w-full rounded border border-gray-300 px-2 py-1 text-gray-900 bg-white"
               >
                 <option value="">Select a detector</option>
                 {detectors.map(detector => (
@@ -647,7 +647,7 @@ const FlowchartBuilder = () => {
             
             {/* New Annotation Key-Value Pairs Section */}
             <div>
-              <label className="block text-sm font-medium text-gray-700">Annotations (Key-Value Pairs)</label>
+              <label className="block text-sm font-medium text-gray-700 mb-2">Annotations (Key-Value Pairs)</label>
               
               {/* List of existing annotation pairs */}
               <div className="space-y-2 mb-4">
@@ -713,7 +713,7 @@ const FlowchartBuilder = () => {
                 type="text"
                 value={node.annotation || ''}
                 onChange={(e) => updateNodeMetadata(selectedNode, 'annotation', e.target.value)}
-                className="mt-1 w-full rounded border border-gray-300 px-2 py-1"
+                className="mt-1 w-full rounded border border-gray-300 px-2 py-1 text-gray-900 bg-white"
                 placeholder="e.g., GO:0035195"
               />
               <p className="text-xs text-gray-500 mt-1">
@@ -723,7 +723,7 @@ const FlowchartBuilder = () => {
           </>
         )}
 
-        {node.type === 'conditional_prompt_boolean' ? (
+        {node.type === 'conditional_boolean' || node.type === 'conditional_prompt_boolean' ? (
           <>
             <div>
               <label className="block text-sm font-medium text-gray-700">Yes Connection</label>
@@ -789,7 +789,7 @@ const FlowchartBuilder = () => {
                 type="text"
                 value={detectorTypeName}
                 onChange={(e) => setDetectorTypeName(e.target.value)}
-                className="mt-1 w-full rounded border border-gray-300 px-2 py-1"
+                className="mt-1 w-full rounded border border-gray-300 px-2 py-1 text-gray-900 bg-white"
                 placeholder="e.g., target"
               />
             </div>
@@ -799,7 +799,7 @@ const FlowchartBuilder = () => {
                 type="text"
                 value={detectorTypeType}
                 onChange={(e) => setDetectorTypeType(e.target.value)}
-                className="mt-1 w-full rounded border border-gray-300 px-2 py-1"
+                className="mt-1 w-full rounded border border-gray-300 px-2 py-1 text-gray-900 bg-white"
                 placeholder="e.g., AE"
               />
             </div>
@@ -980,13 +980,13 @@ const FlowchartBuilder = () => {
       {/* Node creation modal with higher z-index */}
       {showNamePrompt && (
         <div className="fixed inset-0 bg-black bg-opacity-50 flex items-center justify-center z-50">
-          <div className="bg-white rounded-lg p-6 w-96 text-gray-900">
+          <div className="bg-white rounded-lg p-6 w-96 ">
             <h3 className="text-lg font-medium mb-4">New Node Name</h3>
             <input
               type="text"
               value={newNodeName}
               onChange={(e) => setNewNodeName(e.target.value)}
-              className="w-full border border-gray-300 rounded px-3 py-2 mb-2 text-gray-900"
+              className="w-full border border-gray-300 rounded px-3 py-2 mb-2"
               placeholder="e.g., hasExperimentalEvidence"
               onKeyDown={(e) => {
                 if (e.key === 'Enter') {
