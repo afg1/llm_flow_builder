@@ -241,7 +241,7 @@ const FlowchartBuilder = () => {
     }
     
     const newNode = {
-      type: 'conditional_boolean',
+      type: 'conditional_prompt_boolean',
       position: { x: 200, y: 150 },
       connections: {
         yes: '',
@@ -302,6 +302,10 @@ const FlowchartBuilder = () => {
     } else {
       setAnnotationPairs([]);
     }
+      // Clear the input fields for new annotations
+  setNewAnnotationKey('');
+  setNewAnnotationValue('');
+
   };
 
   const updateNodeMetadata = (nodeId, field, value) => {
@@ -920,7 +924,15 @@ const FlowchartBuilder = () => {
         }
       }
     });
-  }, [nodes]);
+    if (selectedNode) {
+      const node = nodes[selectedNode];
+      if (node) {
+        // Load this node's specific annotation pairs
+        const pairs = Object.entries(node.annotationPairs || {}).map(([key, value]) => ({ key, value }));
+        setAnnotationPairs(pairs);
+      }
+    }
+  }, [selectedNode, nodes]);
 
   const handleContainerClick = (e) => {
     if (e.target === e.currentTarget) {
