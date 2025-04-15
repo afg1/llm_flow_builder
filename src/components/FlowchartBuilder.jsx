@@ -22,7 +22,7 @@ const FlowchartBuilder = () => {
   const [detectorPrompt, setDetectorPrompt] = useState('');
   
   // New state for key-value annotation pairs
-  const [annotationPairs, setAnnotationPairs] = useState([]);
+  const [annotationPairs, setAnnotationPairs] = useState({});
   const [newAnnotationKey, setNewAnnotationKey] = useState('');
   const [newAnnotationValue, setNewAnnotationValue] = useState('');
 
@@ -66,11 +66,31 @@ const FlowchartBuilder = () => {
                 yes: nodeData.transitions?.true || '',
                 no: nodeData.transitions?.false || ''
               },
-              prompt: '', // Initialize to empty string
+              prompt: '',
               targetSection: '',
-              annotationPairs: nodeData.data?.annotationPairs || {},
               detectorRef: nodeData.data?.detector || ''
             };
+            
+            // Handle annotations - support both string annotation and key-value pairs
+            if (nodeData.data?.annotation) {
+              importedNodes[id].annotation = nodeData.data.annotation;
+            }
+            
+            // Handle the key-value annotation pairs
+            if (nodeData.data?.annotationPairs) {
+              importedNodes[id].annotationPairs = nodeData.data.annotationPairs;
+            } else {
+              importedNodes[id].annotationPairs = {};
+              
+              // If there's a legacy annotation but no annotationPairs, create a default key-value
+              // pair from the legacy annotation for backward compatibility
+              if (nodeData.data?.annotation && typeof nodeData.data.annotation === 'string' && 
+                  nodeData.data.annotation.trim() !== '') {
+                importedNodes[id].annotationPairs = {
+                  'annotation': nodeData.data.annotation
+                };
+              }
+            }
   
             // Add any additional properties based on node type
             if (nodeType === 'terminal_conditional' && nodeData.data) {
@@ -97,7 +117,6 @@ const FlowchartBuilder = () => {
           });
           
           // Force a refresh of the UI by selecting a node and updating its type slightly
-          // This is a workaround to trigger the UI to display all properties
           setTimeout(() => {
             const firstNodeId = Object.keys(importedNodes)[0];
             if (firstNodeId) {
@@ -108,7 +127,6 @@ const FlowchartBuilder = () => {
               setTimeout(() => {
                 console.log("Forcing UI refresh for node:", firstNodeId);
                 // This is a trick to force the component to refresh without changing actual data
-                // We'll set the same type to itself, which should trigger the UI update
                 const currentNode = importedNodes[firstNodeId];
                 updateNodeMetadata(firstNodeId, 'type', currentNode.type);
               }, 100);
@@ -134,9 +152,28 @@ const FlowchartBuilder = () => {
                 ...updatedNodes[nodeName],
                 prompt: promptObj.prompt || '',
                 targetSection: promptObj.target_section || '',
-                annotationPairs: promptObj.annotationPairs || {},
                 detectorRef: promptObj.detector || ''
               };
+              
+              // Handle annotations - both legacy string format and key-value pairs
+              if (promptObj.annotation) {
+                updatedNodes[nodeName].annotation = promptObj.annotation;
+              }
+              
+              // Handle annotation pairs
+              if (promptObj.annotationPairs && Object.keys(promptObj.annotationPairs).length > 0) {
+                updatedNodes[nodeName].annotationPairs = promptObj.annotationPairs;
+              } else {
+                // If no annotationPairs but has a legacy annotation, create a default key-value pair
+                if (promptObj.annotation && typeof promptObj.annotation === 'string' && 
+                    promptObj.annotation.trim() !== '') {
+                  updatedNodes[nodeName].annotationPairs = {
+                    'annotation': promptObj.annotation
+                  };
+                } else {
+                  updatedNodes[nodeName].annotationPairs = {};
+                }
+              }
               
               // Handle terminal_conditional specific properties
               if (promptObj.type === 'terminal_conditional') {
@@ -300,7 +337,7 @@ const FlowchartBuilder = () => {
       const pairs = Object.entries(node.annotationPairs || {}).map(([key, value]) => ({ key, value }));
       setAnnotationPairs(pairs);
     } else {
-      setAnnotationPairs([]);
+      setAnnotationPairs({});
     }
       // Clear the input fields for new annotations
   setNewAnnotationKey('');
@@ -360,124 +397,128 @@ const FlowchartBuilder = () => {
     updateAnnotationPairs(newPairs);
   };
 
-  const exportToJson = async () => {
-    // Create the two JSON objects
-    const flowchartData = {
-        nodes: {},
-        displayMetadata: {},
-        startNode: Object.keys(nodes)[0] || null
-    };
-
-    const promptsData = {
-        prompts: []
-    };
-
-    // Populate flowchart data
-    Object.entries(nodes).forEach(([id, node]) => {
-      console.log(node)
-        // Base node structure
-        var nodeData = {
-            type: node.type,
-        };
-        
-        // Add type-specific data
-        if (node.type === 'conditional_prompt_boolean') {
-            console.log(nodeData)
-            // Add target section if it exists
-            nodeData.data = {
-              desc: node.name || id,
-              condition: id
-          };
-          nodeData.transitions = {
-            true: node.connections.yes || null,
-            false: node.connections.no || null
-        };
-        } else if (node.type === 'terminal_full' || node.type === 'terminal_short_circuit' || node.type === 'terminal_conditional') {
-            nodeData.data = {
-              desc: node.name || id,
-              terminal: id,
-              annotationPairs: node.annotationPairs || {}
-            }
-        }
-        flowchartData.nodes[id] = nodeData;
-        flowchartData.displayMetadata[id] = {
-            x: node.position.x,
-            y: node.position.y
-        };
-
-        // Populate prompts data if prompt exists
-        
-        if (node.type === 'conditional_prompt_boolean') {
-          promptsData.prompts.push({
-              name: id,
-              type: 'condition_prompt_boolean',
-              prompt: node.prompt,
-              target_section: node.targetSection || null
-          });
-        } else if (node.type === 'terminal_short_circuit') {
-          promptsData.prompts.push({
-            name: id,
-            type: node.type,
-            annotation: null,
-            detector: null
-          });
-        } else if (node.type === 'terminal_full') {
-          promptsData.prompts.push({
-            name: id,
-            type: 'terminal_full', // TODO unify this across the LLM side and here
-            annotation: node.annotation,
-            annotationPairs: node.annotationPairs || {},
-            detector: node.detectorRef
-          });
-        } else if (node.type === 'terminal_conditional')
-        {
-          promptsData.prompts.push({
-            name: id,
-            type: node.type,
-            additionalNodes: node.additionalNodes,
-            annotation_map: node.annotationMap,
-            annotationPairs: node.annotationPairs || {}
-          });
-        }
-        
-    });
-
-    // Add detectors to promptsData if they exist
-    if (detectors.length > 0) {
-        promptsData.detectors = detectors.map(detector => ({
-            name: detector.name,
-            type: detector.type,
-            prompt: detector.prompt
-        }));
-    }
-
-    // Create a new ZIP archive
-    const zip = new JSZip();
-
-    // Add flowchart JSON to zip
-    zip.file('flowchart.json', JSON.stringify(flowchartData, null, 2));
-
-    // If there are prompts or detectors to include
-    if (promptsData.prompts.length > 0 || promptsData.detectors?.length > 0) {
-        zip.file('prompts.json', JSON.stringify(promptsData, null, 2));
-    }
-
-    // Generate the ZIP file and trigger download
-    zip.generateAsync({ type: 'blob' })
-        .then(function(content) {
-            const url = URL.createObjectURL(content);
-            const a = document.createElement('a');
-            a.href = url;
-            a.download = `flowchart_export_${new Date().toISOString().slice(0,10)}.zip`;
-            document.body.appendChild(a);
-            a.click();
-            document.body.removeChild(a);
-            URL.revokeObjectURL(url);
-        })
-        .catch(function(err) {
-            console.error('Error creating zip file:', err);
-        });
+  // Export function
+const exportToJson = async () => {
+  // Create the two JSON objects
+  const flowchartData = {
+    nodes: {},
+    displayMetadata: {},
+    startNode: Object.keys(nodes)[0] || null
   };
+
+  const promptsData = {
+    prompts: []
+  };
+
+  // Populate flowchart data
+  Object.entries(nodes).forEach(([id, node]) => {
+    // Base node structure
+    var nodeData = {
+      type: node.type,
+    };
+    
+    // Add type-specific data
+    if (node.type === 'conditional_prompt_boolean') {
+      // Add target section if it exists
+      nodeData.data = {
+        desc: node.name || id,
+        condition: id
+      };
+      nodeData.transitions = {
+        true: node.connections.yes || null,
+        false: node.connections.no || null
+      };
+    } else if (node.type === 'terminal_full' || node.type === 'terminal_short_circuit' || node.type === 'terminal_conditional') {
+      nodeData.data = {
+        desc: node.name || id,
+        terminal: id,
+        detector: node.detectorRef || null,
+        annotationPairs: node.annotationPairs || {}
+      };
+      
+      // For backward compatibility, add the annotation as a single field if it exists
+      if (node.annotation && node.annotation.trim() !== '') {
+        nodeData.data.annotation = node.annotation;
+      }
+    }
+    
+    flowchartData.nodes[id] = nodeData;
+    flowchartData.displayMetadata[id] = {
+      x: node.position.x,
+      y: node.position.y
+    };
+
+    // Populate prompts data if prompt exists
+    if (node.type === 'conditional_prompt_boolean') {
+      promptsData.prompts.push({
+        name: id,
+        type: 'condition_prompt_boolean',
+        prompt: node.prompt,
+        target_section: node.targetSection || null
+      });
+    } else if (node.type === 'terminal_short_circuit') {
+      promptsData.prompts.push({
+        name: id,
+        type: node.type,
+        annotation: null,
+        detector: null
+      });
+    } else if (node.type === 'terminal_full') {
+      promptsData.prompts.push({
+        name: id,
+        type: 'terminal_full',
+        annotation: node.annotation || null,
+        annotationPairs: node.annotationPairs || {},
+        detector: node.detectorRef || null
+      });
+    } else if (node.type === 'terminal_conditional') {
+      promptsData.prompts.push({
+        name: id,
+        type: node.type,
+        additionalNodes: node.additionalNodes || [],
+        annotation_map: node.annotationMap || {},
+        annotation: node.annotation || null,
+        annotationPairs: node.annotationPairs || {}
+      });
+    }
+  });
+
+  // Add detectors to promptsData if they exist
+  if (detectors.length > 0) {
+    promptsData.detectors = detectors.map(detector => ({
+      name: detector.name,
+      type: detector.type,
+      prompt: detector.prompt
+    }));
+  }
+
+  // Create a new ZIP archive
+  const zip = new JSZip();
+
+  // Add flowchart JSON to zip
+  zip.file('flowchart.json', JSON.stringify(flowchartData, null, 2));
+
+  // If there are prompts or detectors to include
+  if (promptsData.prompts.length > 0 || promptsData.detectors?.length > 0) {
+    zip.file('prompts.json', JSON.stringify(promptsData, null, 2));
+  }
+
+  // Generate the ZIP file and trigger download
+  zip.generateAsync({ type: 'blob' })
+    .then(function(content) {
+      const url = URL.createObjectURL(content);
+      const a = document.createElement('a');
+      a.href = url;
+      a.download = `flowchart_export_${new Date().toISOString().slice(0,10)}.zip`;
+      document.body.appendChild(a);
+      a.click();
+      document.body.removeChild(a);
+      URL.revokeObjectURL(url);
+    })
+    .catch(function(err) {
+      console.error('Error creating zip file:', err);
+    });
+};
 
   const drawConnections = () => {
     const canvas = canvasRef.current;
