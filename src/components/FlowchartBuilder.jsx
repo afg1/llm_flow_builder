@@ -510,7 +510,7 @@ const FlowchartBuilder = () => {
 
     const node = nodes[selectedNode];
     const nodeType = node.type;
-    const popupWidth = nodeType === 'terminal_conditional' ? 'w-96' : '';
+    const popupWidth = nodeType === 'terminal_conditional' ? 'w-[32rem]' : '';
     return (
       <div className={`space-y-4 ${popupWidth}`}>
         <div className='mt-6'>
