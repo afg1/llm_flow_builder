@@ -20,6 +20,11 @@ const FlowchartBuilder = () => {
   const [detectorTypeName, setDetectorTypeName] = useState('');
   const [detectorTypeType, setDetectorTypeType] = useState('');
   const [detectorPrompt, setDetectorPrompt] = useState('');
+  
+  // New state for key-value annotation pairs
+  const [annotationPairs, setAnnotationPairs] = useState([]);
+  const [newAnnotationKey, setNewAnnotationKey] = useState('');
+  const [newAnnotationValue, setNewAnnotationValue] = useState('');
 
   const handleFileImport = async (e, isPromptFile = false) => {
     const file = e.target.files[0];
@@ -63,7 +68,7 @@ const FlowchartBuilder = () => {
               },
               prompt: '', // Initialize to empty string
               targetSection: '',
-              annotation: nodeData.data?.annotation || '',
+              annotationPairs: nodeData.data?.annotationPairs || {},
               detectorRef: nodeData.data?.detector || ''
             };
   
@@ -129,7 +134,7 @@ const FlowchartBuilder = () => {
                 ...updatedNodes[nodeName],
                 prompt: promptObj.prompt || '',
                 targetSection: promptObj.target_section || '',
-                annotation: promptObj.annotation || '',
+                annotationPairs: promptObj.annotationPairs || {},
                 detectorRef: promptObj.detector || ''
               };
               
@@ -236,13 +241,14 @@ const FlowchartBuilder = () => {
     }
     
     const newNode = {
-      type: 'conditional_boolean',
+      type: 'conditional_prompt_boolean',
       position: { x: 200, y: 150 },
       connections: {
         yes: '',
         no: ''
       },
-      prompt: ''
+      prompt: '',
+      annotationPairs: {}
     };
     
     setNodes(prev => ({ ...prev, [newNodeName]: newNode }));
@@ -287,6 +293,15 @@ const FlowchartBuilder = () => {
 
   const handleNodeSelect = (nodeId) => {
     setSelectedNode(nodeId);
+    
+    // Initialize annotation pairs state based on the selected node
+    const node = nodes[nodeId];
+    if (node && node.annotationPairs) {
+      const pairs = Object.entries(node.annotationPairs || {}).map(([key, value]) => ({ key, value }));
+      setAnnotationPairs(pairs);
+    } else {
+      setAnnotationPairs([]);
+    }
   };
 
   const updateNodeMetadata = (nodeId, field, value) => {
@@ -298,6 +313,47 @@ const FlowchartBuilder = () => {
         [field]: value
       }
     }));
+  };
+
+  // Add a new function to handle annotation pair updates
+  const updateAnnotationPairs = (pairs) => {
+    if (!selectedNode) return;
+    
+    // Convert the array of pairs to an object
+    const pairsObject = {};
+    pairs.forEach(pair => {
+      if (pair.key && pair.key.trim() !== '') {
+        pairsObject[pair.key] = pair.value;
+      }
+    });
+    
+    // Update the node
+    updateNodeMetadata(selectedNode, 'annotationPairs', pairsObject);
+  };
+
+  const addAnnotationPair = () => {
+    if (newAnnotationKey.trim() === '') return;
+    
+    const newPairs = [...annotationPairs, { key: newAnnotationKey, value: newAnnotationValue }];
+    setAnnotationPairs(newPairs);
+    updateAnnotationPairs(newPairs);
+    
+    // Clear the input fields
+    setNewAnnotationKey('');
+    setNewAnnotationValue('');
+  };
+
+  const removeAnnotationPair = (index) => {
+    const newPairs = annotationPairs.filter((_, i) => i !== index);
+    setAnnotationPairs(newPairs);
+    updateAnnotationPairs(newPairs);
+  };
+
+  const updateAnnotationPair = (index, field, value) => {
+    const newPairs = [...annotationPairs];
+    newPairs[index][field] = value;
+    setAnnotationPairs(newPairs);
+    updateAnnotationPairs(newPairs);
   };
 
   const exportToJson = async () => {
@@ -317,7 +373,7 @@ const FlowchartBuilder = () => {
       console.log(node)
         // Base node structure
         var nodeData = {
-            type: node.type ,
+            type: node.type,
         };
         
         // Add type-specific data
@@ -335,7 +391,8 @@ const FlowchartBuilder = () => {
         } else if (node.type === 'terminal_full' || node.type === 'terminal_short_circuit' || node.type === 'terminal_conditional') {
             nodeData.data = {
               desc: node.name || id,
-              terminal: id
+              terminal: id,
+              annotationPairs: node.annotationPairs || {}
             }
         }
         flowchartData.nodes[id] = nodeData;
@@ -365,6 +422,7 @@ const FlowchartBuilder = () => {
             name: id,
             type: 'terminal_full', // TODO unify this across the LLM side and here
             annotation: node.annotation,
+            annotationPairs: node.annotationPairs || {},
             detector: node.detectorRef
           });
         } else if (node.type === 'terminal_conditional')
@@ -373,7 +431,8 @@ const FlowchartBuilder = () => {
             name: id,
             type: node.type,
             additionalNodes: node.additionalNodes,
-            annotation_map: node.annotationMap
+            annotation_map: node.annotationMap,
+            annotationPairs: node.annotationPairs || {}
           });
         }
         
@@ -454,15 +513,6 @@ const FlowchartBuilder = () => {
     const popupWidth = nodeType === 'terminal_conditional' ? 'w-96' : '';
     return (
       <div className={`space-y-4 ${popupWidth}`}>
-        {/* <div>
-          <label className="block text-sm font-medium text-gray-700">Name</label>
-          <input
-            type="text"
-            value={node.name}
-            onChange={(e) => updateNodeMetadata(selectedNode, 'name', e.target.value)}
-            className="mt-1 w-full rounded border border-gray-300 px-2 py-1 bg-white text-gray-900"
-          />
-        </div> */}
         <div className='mt-6'>
           <label className="block text-sm font-medium text-gray-700">Type</label>
           <select
@@ -577,7 +627,7 @@ const FlowchartBuilder = () => {
           </>
         )}
 
-        {(node.type === 'terminal_full' ) && (
+        {(node.type === 'terminal_full' || node.type === 'terminal_conditional') && (
           <>
             <div>
               <label className="block text-sm font-medium text-gray-700">Detector</label>
@@ -594,8 +644,71 @@ const FlowchartBuilder = () => {
                 ))}
               </select>
             </div>
+            
+            {/* New Annotation Key-Value Pairs Section */}
             <div>
-              <label className="block text-sm font-medium text-gray-700">Annotation</label>
+              <label className="block text-sm font-medium text-gray-700">Annotations (Key-Value Pairs)</label>
+              
+              {/* List of existing annotation pairs */}
+              <div className="space-y-2 mb-4">
+                {annotationPairs.map((pair, index) => (
+                  <div key={index} className="flex gap-2">
+                    <input
+                      type="text"
+                      value={pair.key}
+                      onChange={(e) => updateAnnotationPair(index, 'key', e.target.value)}
+                      className="flex-1 rounded border border-gray-300 px-2 py-1 text-gray-900 bg-white"
+                      placeholder="Key (e.g., involved_in)"
+                    />
+                    <input
+                      type="text"
+                      value={pair.value}
+                      onChange={(e) => updateAnnotationPair(index, 'value', e.target.value)}
+                      className="flex-1 rounded border border-gray-300 px-2 py-1 text-gray-900 bg-white"
+                      placeholder="Value (e.g., GO0000512)"
+                    />
+                    <button
+                      onClick={() => removeAnnotationPair(index)}
+                      className="text-red-500 hover:text-red-700"
+                    >
+                      <X size={16} />
+                    </button>
+                  </div>
+                ))}
+              </div>
+              
+              {/* Add new annotation pair */}
+              <div className="flex gap-2 mb-2">
+                <input
+                  type="text"
+                  value={newAnnotationKey}
+                  onChange={(e) => setNewAnnotationKey(e.target.value)}
+                  className="flex-1 rounded border border-gray-300 px-2 py-1 text-gray-900 bg-white"
+                  placeholder="Key (e.g., involved_in)"
+                />
+                <input
+                  type="text"
+                  value={newAnnotationValue}
+                  onChange={(e) => setNewAnnotationValue(e.target.value)}
+                  className="flex-1 rounded border border-gray-300 px-2 py-1 text-gray-900 bg-white"
+                  placeholder="Value (e.g., GO0000512)"
+                />
+                <button
+                  onClick={addAnnotationPair}
+                  className="text-blue-500 hover:text-blue-700"
+                  disabled={!newAnnotationKey.trim()}
+                >
+                  <Plus size={16} />
+                </button>
+              </div>
+              <p className="text-xs text-gray-500 mt-1">
+                Add key-value pairs for annotating (e.g., involved_in: GO0000512)
+              </p>
+            </div>
+            
+            {/* Legacy single annotation field */}
+            <div>
+              <label className="block text-sm font-medium text-gray-700">Legacy Annotation (Single value)</label>
               <input
                 type="text"
                 value={node.annotation || ''}
@@ -603,6 +716,9 @@ const FlowchartBuilder = () => {
                 className="mt-1 w-full rounded border border-gray-300 px-2 py-1"
                 placeholder="e.g., GO:0035195"
               />
+              <p className="text-xs text-gray-500 mt-1">
+                This is maintained for backward compatibility. Prefer using key-value pairs above.
+              </p>
             </div>
           </>
         )}
